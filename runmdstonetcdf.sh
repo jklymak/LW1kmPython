@@ -8,6 +8,8 @@
 #PBS -j oe
 #PBS -N mdstonetcdf
 
+# qsub -v PRE=LW1km20h runmdstonetcdf.sh
+
 cd $PBS_O_WORKDIR
 echo $PATH
 which python
