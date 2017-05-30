@@ -20,11 +20,13 @@ if len(sys.argv)==5:
 else:
     sys.exit('GetEnergyBudget.py prefix U0 last')
 
+print(pre)
 print(U0)
-    
+print(first)
+print(diter)
+
 submean = True
-    
-print pre
+
 
 
 dss=[0,0,0]
@@ -34,6 +36,7 @@ iters = np.array([-2*diter,-diter,0])+first
 print(iters)
 for i in range(3):
     n=i
+    print('../results/'+pre+'/_Model/input/ds%010d.nc'%iters[i])
     dss[i] = xr.open_dataset('../results/'+pre+'/_Model/input/ds%010d.nc'%iters[i],
                           chunks={'Z':10,'Zl':10})
     N0=1e-3
@@ -58,19 +61,19 @@ for i in range(3):
                         XG=indx,XC=np.hstack((indx[0]-1,indx)))
     dss[n]['V']=dss[n]['V']-v0[i]
     dss[n]['U']=dss[n]['U']-u0[i]
-    
+
     print(dss[n]['time'])
-    
+
 # this grid has one extra YC and XC bracketing the XG and YG variables...
 # We will operate on the inner ring of XC,YC.
 
 # get kinetic energy at center of grid cells
 #
-# integration is at ind = 1 to ind = -1.  This allows us to get data from the U,V cells at those 
+# integration is at ind = 1 to ind = -1.  This allows us to get data from the U,V cells at those
 # points.
 #
 # What we really should have done was actualy subset P one larger than U (the opposite of the
-# usual).  
+# usual).
 
 energy=[[],[],[]]
 ia = slice(1,-1) # should be inner data (excluding edges)
@@ -85,7 +88,19 @@ for n in range(3):
 
 ds=dss[1]
 
-## get dWdP term at each depth. 
+print('Starting Form Drag')
+
+dhdx = 0.*ds.Depth.values
+dhdx[:,1:] = ds.Depth.diff(dim='XC').values/ds['dxC'].values
+dhdx[:,0]=(ds.Depth[:,-1]-ds.Depth[:,0])/ds['dxC'][0,0]
+energy[1]['Fd'] = U0*np.mean(dhdx*ds.PHL[0,:,:].values)
+energy[0]['Fd'] = U0*np.mean(dhdx*dss[0].PHL[0,:,:].values)
+energy[2]['Fd'] = U0*np.mean(dhdx*dss[2].PHL[0,:,:].values)
+print(energy[0]['Fd'])
+print(energy[1]['Fd'])
+print(energy[2]['Fd'])
+
+## get dWdP term at each depth.
 # get the pressure on the Zl points:
 print('Starting d(WP)/dz')
 PL = xr.DataArray(0.5*(ds['PH'][:,1:,:,:].data+ds['PH'][:,:-1,:,:].data),dims=('time','Zl','YC','XC'),
@@ -100,7 +115,7 @@ print(energy[1].keys())
 
 
 print('Starting Body Force')
-## Get the body force.... 
+## Get the body force....
 f0=1.e-4
 # clean up...
 ## sizes wrong here....
@@ -122,7 +137,7 @@ print(energy[1]['Bf'])
 if 1:
     for n in range(3):
         print('Starting KE')
-        
+
         with ProgressBar():
             xx = (0.5*0.5*(dss[n]['U'].isel(XG=a,YC=ia)**2 * dss[n]['hFacW'].isel(XG=a,YC=ia).data) *
                   dss[n]['rA'].isel(XC=ia,YC=ia).data).sum(dim=('YC','XG')).compute()
@@ -151,7 +166,7 @@ print(energy[1].keys())
 
 
 
-    
+
 print('Starting linear internal wave fluxes')
 
 # upW: This is on the LHS.  Need PH on the G face...
@@ -265,6 +280,3 @@ name='EnergyDemean'+pre+'%010d.pickle'%iters[1]
 print('Writing '+name)
 with open(name,'w') as f:
     pickle.dump(energy,f)
-
-
-
